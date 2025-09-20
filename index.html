@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SGIS ZXing - Sistema de Gestão de Inventário</title>
+    <title>SGIS com Apps Script</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -12,7 +12,7 @@
         background-color: #f5f5f5;
       }
       .container {
-        max-width: 800px;
+        max-width: 900px;
         margin: 0 auto;
         padding: 1rem;
       }
@@ -48,439 +48,391 @@
         flex: 1;
         padding: 0.4rem;
         font-size: 1rem;
-        box-sizing: border-box;
+        width: 100%;
       }
-      .form-group .input-row {
-        display: flex;
-        align-items: center;
-      }
-      .form-group .input-row button {
-        margin-left: 0.5rem;
-        padding: 0.4rem 0.6rem;
-        font-size: 0.9rem;
+      .status {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background-color: #e9ecef;
+        border-radius: 4px;
       }
       table {
         width: 100%;
         border-collapse: collapse;
+        margin-top: 1rem;
       }
-      th,
-      td {
+      th, td {
         border: 1px solid #ccc;
         padding: 0.5rem;
         text-align: left;
       }
       th {
-        background-color: #eee;
+        background-color: #f0f0f0;
       }
-      .error {
-        color: red;
-        margin-bottom: 0.5rem;
-      }
-      #scanArea {
-        width: 100%;
-        height: 250px;
-        border: 1px solid #ccc;
-        margin-bottom: 1rem;
+      /* Modal for scanner */
+      #scannerModal {
         display: none;
-        position: relative;
-      }
-      #scanPreview {
+        position: fixed;
+        top: 0;
+        left: 0;
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        background-color: rgba(0, 0, 0, 0.6);
+        justify-content: center;
+        align-items: center;
+        z-index: 999;
+      }
+      #scannerModal video {
+        width: 90%;
+        max-width: 400px;
+        border: 4px solid #fff;
+        border-radius: 8px;
       }
     </style>
-    <!-- Include ZXing library from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
   </head>
   <body>
     <div class="container">
-      <h1>SGIS ZXing - Inventário Simples</h1>
+      <h1>SGIS (Google Apps Script)</h1>
       <nav>
         <button id="btnEntrada">Entrada</button>
         <button id="btnSaida">Saída</button>
         <button id="btnConsulta">Consulta</button>
         <button id="btnExport">Exportar</button>
       </nav>
-      <!-- Scanning area -->
-      <div id="scanArea">
-        <video id="scanPreview"></video>
-      </div>
-      <!-- Entrada view -->
-      <section id="entradaView" class="view">
+      <div id="entradaView" class="view active">
         <h2>Entrada de Stock</h2>
-        <div id="entradaError" class="error" style="display:none;"></div>
-        <form id="entradaForm">
-          <div class="form-group">
-            <label for="entradaCode">Código do Produto</label>
-            <div class="input-row">
-              <input
-                id="entradaCode"
-                type="text"
-                placeholder="Scan ou insira o código"
-                required
-              />
-              <button type="button" id="entradaScanBtn">Scan</button>
-            </div>
-          </div>
-          <div class="form-group" id="entradaNameGroup" style="display:none;">
-            <label for="entradaName">Nome</label>
-            <input id="entradaName" type="text" placeholder="Nome do produto" />
-          </div>
-          <div class="form-group" id="entradaPriceGroup" style="display:none;">
-            <label for="entradaPrice">Preço Unitário (€)
-            </label>
-            <input
-              id="entradaPrice"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="Preço por unidade"
-            />
-          </div>
-          <div class="form-group">
-            <label for="entradaQuantity">Quantidade</label>
-            <input
-              id="entradaQuantity"
-              type="number"
-              min="1"
-              placeholder="Quantidade"
-              required
-            />
-          </div>
-          <button type="submit">Guardar Entrada</button>
-        </form>
-      </section>
-      <!-- Saída view -->
-      <section id="saidaView" class="view">
+        <div class="form-group">
+          <label for="entradaCodigo">Código de barras</label>
+          <input type="text" id="entradaCodigo" />
+          <button id="scanEntrada">Scan</button>
+        </div>
+        <div class="form-group">
+          <label for="entradaNome">Nome do Produto</label>
+          <input type="text" id="entradaNome" />
+        </div>
+        <div class="form-group">
+          <label for="entradaPreco">Preço Unitário (€)</label>
+          <input type="number" id="entradaPreco" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="entradaQuantidade">Quantidade</label>
+          <input type="number" id="entradaQuantidade" step="1" />
+        </div>
+        <button id="btnAddEntrada">Adicionar Entrada</button>
+      </div>
+      <div id="saidaView" class="view">
         <h2>Saída de Stock</h2>
-        <div id="saidaError" class="error" style="display:none;"></div>
-        <form id="saidaForm">
-          <div class="form-group">
-            <label for="saidaCode">Código do Produto</label>
-            <div class="input-row">
-              <input
-                id="saidaCode"
-                type="text"
-                placeholder="Scan ou insira o código"
-                required
-              />
-              <button type="button" id="saidaScanBtn">Scan</button>
-            </div>
-          </div>
-          <p id="saidaInfo" style="margin-bottom:0.5rem;"></p>
-          <div class="form-group">
-            <label for="saidaQuantity">Quantidade</label>
-            <input
-              id="saidaQuantity"
-              type="number"
-              min="1"
-              placeholder="Quantidade"
-              required
-            />
-          </div>
-          <button type="submit">Guardar Saída</button>
-        </form>
-      </section>
-      <!-- Consulta view -->
-      <section id="consultaView" class="view">
+        <div class="form-group">
+          <label for="saidaCodigo">Código de barras</label>
+          <input type="text" id="saidaCodigo" />
+          <button id="scanSaida">Scan</button>
+        </div>
+        <div class="form-group">
+          <label for="saidaQuantidade">Quantidade</label>
+          <input type="number" id="saidaQuantidade" step="1" />
+        </div>
+        <button id="btnAddSaida">Registar Saída</button>
+      </div>
+      <div id="consultaView" class="view">
         <h2>Consulta de Stock</h2>
         <div class="form-group">
-          <label for="consultaSearch">Pesquisar (código ou nome)
-          </label>
-          <input
-            id="consultaSearch"
-            type="text"
-            placeholder="Introduza código ou nome para pesquisar"
-          />
+          <label for="consultaBusca">Buscar por código ou nome</label>
+          <input type="text" id="consultaBusca" />
+          <button id="scanConsulta">Scan</button>
         </div>
-        <table id="consultaTable">
+        <table id="consultaTabela">
           <thead>
             <tr>
               <th>Código</th>
               <th>Nome</th>
+              <th>Preço Unitário (€)</th>
               <th>Quantidade</th>
-              <th>Preço Unitário (€)
-              </th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
-      </section>
-      <!-- Export view -->
-      <section id="exportView" class="view">
+      </div>
+      <div id="exportView" class="view">
         <h2>Exportar Inventário</h2>
-        <p>
-          Exporta a lista de produtos e quantidades atuais em formato CSV (compatível
-          com Excel).
-        </p>
-        <button id="btnDownload">Exportar CSV</button>
-      </section>
+        <button id="btnDownloadCSV">Exportar para CSV</button>
+      </div>
+      <div class="status" id="status"></div>
     </div>
+
+    <!-- Scanner modal -->
+    <div id="scannerModal">
+      <video id="preview"></video>
+    </div>
+
+    <!-- ZXing library -->
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
     <script>
-      // Storage keys
-      const PRODUCTS_KEY = 'sgis_products';
-      const MOVEMENTS_KEY = 'sgis_movements';
-      function loadProducts() {
-        try {
-          const data = localStorage.getItem(PRODUCTS_KEY);
-          return data ? JSON.parse(data) : [];
-        } catch (e) {
-          console.error('Erro ao ler produtos', e);
-          return [];
-        }
-      }
-      function saveProducts(products) {
-        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
-      }
-      function loadMovements() {
-        try {
-          const data = localStorage.getItem(MOVEMENTS_KEY);
-          return data ? JSON.parse(data) : [];
-        } catch (e) {
-          console.error('Erro ao ler movimentos', e);
-          return [];
-        }
-      }
-      function saveMovements(movements) {
-        localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(movements));
-      }
-      // Global state
-      let products = loadProducts();
-      let movements = loadMovements();
-      // View controls
+      // --- Configuration ---
+      // Replace WEB_APP_URL with the deployment URL of your Apps Script Web App.
+      const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMcTuyVMqRZ4S7KoAgr70BoEe8PrWp1nEZTh6qAODUqJA4KbdBNnYTmFbl-WjpT4fh/exec';
+
+      // Local storage keys
+      const STORAGE_PRODUCTS_KEY = 'sgis_products';
+      const STORAGE_MOVEMENTS_KEY = 'sgis_movements';
+
+      // State
+      let products = [];
+      let movements = [];
+      let selectedInput = null; // input to fill after scanning
+
+      // Initialize application
+      document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+        updateProductTable();
+        updateStatus();
+
+        // Navigation buttons
+        document.getElementById('btnEntrada').addEventListener('click', () => showView('entradaView'));
+        document.getElementById('btnSaida').addEventListener('click', () => showView('saidaView'));
+        document.getElementById('btnConsulta').addEventListener('click', () => showView('consultaView'));
+        document.getElementById('btnExport').addEventListener('click', () => showView('exportView'));
+
+        // Entrada events
+        document.getElementById('btnAddEntrada').addEventListener('click', addEntrada);
+        document.getElementById('scanEntrada').addEventListener('click', () => startScan('entradaCodigo'));
+
+        // Saída events
+        document.getElementById('btnAddSaida').addEventListener('click', addSaida);
+        document.getElementById('scanSaida').addEventListener('click', () => startScan('saidaCodigo'));
+
+        // Consulta events
+        document.getElementById('consultaBusca').addEventListener('input', updateProductTable);
+        document.getElementById('scanConsulta').addEventListener('click', () => startScan('consultaBusca'));
+
+        // Export events
+        document.getElementById('btnDownloadCSV').addEventListener('click', exportCSV);
+
+        // Online/offline events
+        window.addEventListener('online', () => {
+          updateStatus();
+          syncDataToServer();
+        });
+        window.addEventListener('offline', updateStatus);
+      });
+
+      // Show a specific view
       function showView(viewId) {
-        document.querySelectorAll('.view').forEach((el) => {
-          el.classList.remove('active');
+        document.querySelectorAll('.view').forEach(view => {
+          view.classList.remove('active');
         });
         document.getElementById(viewId).classList.add('active');
-        // hide scan area and stop scanning when changing view
-        stopScan();
       }
-      // Navigation
-      document.getElementById('btnEntrada').addEventListener('click', () => {
-        showView('entradaView');
-      });
-      document.getElementById('btnSaida').addEventListener('click', () => {
-        showView('saidaView');
-      });
-      document.getElementById('btnConsulta').addEventListener('click', () => {
-        renderConsulta();
-        showView('consultaView');
-      });
-      document.getElementById('btnExport').addEventListener('click', () => {
-        showView('exportView');
-      });
-      // Entrada form behaviour
-      const entradaCodeInput = document.getElementById('entradaCode');
-      const entradaNameGroup = document.getElementById('entradaNameGroup');
-      const entradaPriceGroup = document.getElementById('entradaPriceGroup');
-      const entradaNameInput = document.getElementById('entradaName');
-      const entradaPriceInput = document.getElementById('entradaPrice');
-      const entradaQuantityInput = document.getElementById('entradaQuantity');
-      const entradaError = document.getElementById('entradaError');
-      function updateEntradaFields() {
-        const code = entradaCodeInput.value.trim();
-        const existing = products.find((p) => p.code === code);
-        if (existing) {
-          entradaNameGroup.style.display = 'none';
-          entradaPriceGroup.style.display = 'none';
-          entradaNameInput.value = existing.name;
-          entradaPriceInput.value = existing.price;
-        } else {
-          entradaNameGroup.style.display = 'block';
-          entradaPriceGroup.style.display = 'block';
-          entradaNameInput.value = '';
-          entradaPriceInput.value = '';
+
+      // Load data from localStorage
+      function loadData() {
+        try {
+          const storedProducts = localStorage.getItem(STORAGE_PRODUCTS_KEY);
+          products = storedProducts ? JSON.parse(storedProducts) : [];
+        } catch (e) {
+          products = [];
+        }
+        try {
+          const storedMovements = localStorage.getItem(STORAGE_MOVEMENTS_KEY);
+          movements = storedMovements ? JSON.parse(storedMovements) : [];
+        } catch (e) {
+          movements = [];
         }
       }
-      entradaCodeInput.addEventListener('input', updateEntradaFields);
-      document.getElementById('entradaForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        entradaError.style.display = 'none';
-        const code = entradaCodeInput.value.trim();
-        const qty = parseInt(entradaQuantityInput.value, 10);
-        if (!code) {
-          showEntradaError('Código é obrigatório');
-          return;
-        }
-        if (!qty || qty <= 0) {
-          showEntradaError('Quantidade inválida');
-          return;
-        }
-        const existing = products.find((p) => p.code === code);
-        if (existing) {
-          existing.stock += qty;
-        } else {
-          const name = entradaNameInput.value.trim();
-          const price = parseFloat(entradaPriceInput.value);
-          if (!name || isNaN(price)) {
-            showEntradaError('Nome e preço são obrigatórios para novo produto');
-            return;
-          }
-          products.push({ code, name, price: price, stock: qty });
-        }
-        saveProducts(products);
-        movements.push({ date: new Date().toISOString(), type: 'Entrada', code: code, quantity: qty });
-        saveMovements(movements);
-        entradaCodeInput.value = '';
-        entradaQuantityInput.value = '';
-        updateEntradaFields();
-        alert('Entrada registrada com sucesso');
-      });
-      function showEntradaError(msg) {
-        entradaError.textContent = msg;
-        entradaError.style.display = 'block';
+
+      // Save data to localStorage
+      function saveData() {
+        localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(products));
+        localStorage.setItem(STORAGE_MOVEMENTS_KEY, JSON.stringify(movements));
       }
-      // Saída form behaviour
-      const saidaCodeInput = document.getElementById('saidaCode');
-      const saidaQuantityInput = document.getElementById('saidaQuantity');
-      const saidaInfo = document.getElementById('saidaInfo');
-      const saidaError = document.getElementById('saidaError');
-      function updateSaidaInfo() {
-        saidaInfo.textContent = '';
-        const code = saidaCodeInput.value.trim();
-        const product = products.find((p) => p.code === code);
-        if (product) {
-          saidaInfo.textContent = `${product.name} — Stock atual: ${product.stock}, Preço unitário: €${product.price.toFixed(2)}`;
-        }
-      }
-      saidaCodeInput.addEventListener('input', updateSaidaInfo);
-      document.getElementById('saidaForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        saidaError.style.display = 'none';
-        const code = saidaCodeInput.value.trim();
-        const qty = parseInt(saidaQuantityInput.value, 10);
-        if (!code) {
-          showSaidaError('Código é obrigatório');
+
+      // Add entry
+      function addEntrada() {
+        const codigo = document.getElementById('entradaCodigo').value.trim();
+        const nome = document.getElementById('entradaNome').value.trim();
+        const preco = parseFloat(document.getElementById('entradaPreco').value);
+        const quantidade = parseInt(document.getElementById('entradaQuantidade').value, 10);
+        if (!codigo || !nome || isNaN(preco) || isNaN(quantidade) || quantidade <= 0) {
+          alert('Preencha todos os campos de entrada correctamente.');
           return;
         }
-        if (!qty || qty <= 0) {
-          showSaidaError('Quantidade inválida');
-          return;
-        }
-        const product = products.find((p) => p.code === code);
+        let product = products.find(p => p.codigo === codigo);
         if (!product) {
-          showSaidaError('Produto não encontrado');
-          return;
+          product = { codigo, nome, preco, quantidade: 0 };
+          products.push(product);
         }
-        if (product.stock < qty) {
-          showSaidaError(`Stock insuficiente. Stock atual: ${product.stock}, solicitado: ${qty}`);
-          return;
+        product.nome = nome;
+        product.preco = preco;
+        product.quantidade += quantidade;
+        movements.push({ data: new Date().toISOString(), tipo: 'Entrada', codigo, quantidade, utilizador: 'Local' });
+        saveData();
+        updateProductTable();
+        clearEntradaForm();
+        updateStatus();
+        if (navigator.onLine) {
+          syncDataToServer();
         }
-        product.stock -= qty;
-        saveProducts(products);
-        movements.push({ date: new Date().toISOString(), type: 'Saída', code: code, quantity: qty });
-        saveMovements(movements);
-        saidaCodeInput.value = '';
-        saidaQuantityInput.value = '';
-        updateSaidaInfo();
-        alert('Saída registrada com sucesso');
-      });
-      function showSaidaError(msg) {
-        saidaError.textContent = msg;
-        saidaError.style.display = 'block';
       }
-      // Consulta view
-      const consultaSearchInput = document.getElementById('consultaSearch');
-      const consultaTableBody = document.querySelector('#consultaTable tbody');
-      function renderConsulta() {
-        const query = consultaSearchInput.value.trim().toLowerCase();
-        consultaTableBody.innerHTML = '';
+
+      function clearEntradaForm() {
+        document.getElementById('entradaCodigo').value = '';
+        document.getElementById('entradaNome').value = '';
+        document.getElementById('entradaPreco').value = '';
+        document.getElementById('entradaQuantidade').value = '';
+      }
+
+      // Add exit
+      function addSaida() {
+        const codigo = document.getElementById('saidaCodigo').value.trim();
+        const quantidade = parseInt(document.getElementById('saidaQuantidade').value, 10);
+        if (!codigo || isNaN(quantidade) || quantidade <= 0) {
+          alert('Preencha o código e a quantidade correctamente.');
+          return;
+        }
+        const product = products.find(p => p.codigo === codigo);
+        if (!product) {
+          alert('Produto não encontrado.');
+          return;
+        }
+        if (product.quantidade < quantidade) {
+          alert('Quantidade insuficiente em stock.');
+          return;
+        }
+        product.quantidade -= quantidade;
+        movements.push({ data: new Date().toISOString(), tipo: 'Saída', codigo, quantidade, utilizador: 'Local' });
+        saveData();
+        updateProductTable();
+        clearSaidaForm();
+        updateStatus();
+        if (navigator.onLine) {
+          syncDataToServer();
+        }
+      }
+
+      function clearSaidaForm() {
+        document.getElementById('saidaCodigo').value = '';
+        document.getElementById('saidaQuantidade').value = '';
+      }
+
+      // Update product table
+      function updateProductTable() {
+        const tbody = document.querySelector('#consultaTabela tbody');
+        tbody.innerHTML = '';
+        const searchTerm = document.getElementById('consultaBusca').value.trim().toLowerCase();
         products
-          .filter((p) => p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query))
-          .forEach((p) => {
+          .filter(p => {
+            return (
+              p.codigo.toLowerCase().includes(searchTerm) ||
+              p.nome.toLowerCase().includes(searchTerm)
+            );
+          })
+          .sort((a, b) => a.codigo.localeCompare(b.codigo))
+          .forEach(p => {
             const tr = document.createElement('tr');
-            const tdCode = document.createElement('td');
-            tdCode.textContent = p.code;
-            const tdName = document.createElement('td');
-            tdName.textContent = p.name;
-            const tdStock = document.createElement('td');
-            tdStock.textContent = p.stock;
-            const tdPrice = document.createElement('td');
-            tdPrice.textContent = p.price.toFixed(2);
-            tr.appendChild(tdCode);
-            tr.appendChild(tdName);
-            tr.appendChild(tdStock);
-            tr.appendChild(tdPrice);
-            consultaTableBody.appendChild(tr);
+            tr.innerHTML = `<td>${p.codigo}</td><td>${p.nome}</td><td>${p.preco.toFixed(2)}</td><td>${p.quantidade}</td>`;
+            tbody.appendChild(tr);
           });
       }
-      consultaSearchInput.addEventListener('input', renderConsulta);
-      // Export view
-      document.getElementById('btnDownload').addEventListener('click', function () {
+
+      // Export to CSV (only products for inventory)
+      function exportCSV() {
         if (products.length === 0) {
           alert('Não há produtos para exportar.');
           return;
         }
-        const header = ['Código', 'Nome', 'Quantidade', 'Preço Unitário'];
-        const lines = [header.join(';')];
-        products.forEach((p) => {
-          lines.push([p.code, p.name, p.stock, p.price.toFixed(2)].join(';'));
+        const header = ['Código', 'Nome', 'Quantidade', 'Preço Unitário (€)'];
+        const rows = products.map(p => [p.codigo, p.nome, p.quantidade, p.preco.toFixed(2)]);
+        let csvContent = header.join(',') + '\n';
+        rows.forEach(row => {
+          csvContent += row.map(item => '"' + item.replace(/"/g, '""') + '"').join(',') + '\n';
         });
-        const csvContent = lines.join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        const date = new Date().toISOString().slice(0, 10);
-        link.download = `inventario_${date}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      });
-      // ZXing scanning logic
-      let scanning = false;
-      let scanningTarget = null;
-      const scanArea = document.getElementById('scanArea');
-      const scanPreview = document.getElementById('scanPreview');
-      // ZXing code reader
-      const codeReader = new ZXing.BrowserMultiFormatReader();
-      function startScan(targetInputId) {
-        if (scanning) return;
-        scanning = true;
-        scanningTarget = targetInputId;
-        scanArea.style.display = 'block';
-        // decode from camera stream
-        codeReader
-          .decodeFromVideoDevice(
-            null,
-            scanPreview,
-            (result, err) => {
-              if (result) {
-                const code = result.text;
-                const input = document.getElementById(scanningTarget);
-                input.value = code;
-                const evt = new Event('input', { bubbles: true });
-                input.dispatchEvent(evt);
-                stopScan();
-              }
-            }
-          )
-          .catch((err) => {
-            console.error(err);
-            alert('Erro ao iniciar o scanner');
-            stopScan();
+        const a = document.createElement('a');
+        a.href = url;
+        const now = new Date();
+        const fileName = `Inventario_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.csv`;
+        a.download = fileName;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // Update status indicator
+      function updateStatus() {
+        const status = document.getElementById('status');
+        if (navigator.onLine) {
+          status.textContent = 'Online';
+        } else {
+          status.textContent = 'Offline (as alterações serão sincronizadas quando houver ligação)';
+        }
+      }
+
+      // Synchronize data to Apps Script backend
+      function syncDataToServer() {
+        if (!WEB_APP_URL || WEB_APP_URL.startsWith('REPLACE_WITH')) {
+          // Web app URL not configured
+          console.warn('WEB_APP_URL não definido. Configure o URL de implantação do Apps Script.');
+          return;
+        }
+        // Prepare payload: convert product and movements arrays to arrays of arrays
+        const produtosValues = products.map(p => [p.codigo, p.nome, p.preco, p.quantidade]);
+        const movimentosValues = movements.map(m => [m.data, m.tipo, m.codigo, m.quantidade, m.utilizador]);
+        fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ produtos: produtosValues, movimentos: movimentosValues })
+        })
+          .then(response => response.json())
+          .then(data => {
+            console.log('Sync response:', data);
+            document.getElementById('status').textContent = 'Sincronizado com o servidor';
+          })
+          .catch(err => {
+            console.error('Erro ao sincronizar:', err);
+            document.getElementById('status').textContent = 'Erro na sincronização';
           });
       }
-      function stopScan() {
-        if (!scanning) return;
-        scanning = false;
-        codeReader.reset();
-        scanArea.style.display = 'none';
-        scanningTarget = null;
+
+      // Barcode scanning using ZXing
+      function startScan(inputId) {
+        selectedInput = document.getElementById(inputId);
+        const modal = document.getElementById('scannerModal');
+        const previewElem = document.getElementById('preview');
+        modal.style.display = 'flex';
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+        codeReader
+          .listVideoInputDevices()
+          .then(videoInputDevices => {
+            const firstDeviceId = videoInputDevices[0]?.deviceId;
+            codeReader.decodeFromVideoDevice(firstDeviceId, 'preview', (result, err) => {
+              if (result) {
+                selectedInput.value = result.getText();
+                stopScan(codeReader);
+              }
+            });
+          })
+          .catch(err => {
+            console.error(err);
+            alert('Erro ao aceder à câmara: ' + err.message);
+            stopScan(codeReader);
+          });
+        // Clicking outside the video stops the scan
+        modal.addEventListener('click', () => {
+          stopScan(codeReader);
+        });
       }
-      // Attach scan buttons
-      document.getElementById('entradaScanBtn').addEventListener('click', () => {
-        startScan('entradaCode');
-      });
-      document.getElementById('saidaScanBtn').addEventListener('click', () => {
-        startScan('saidaCode');
-      });
-      // Initialize default view
-      showView('entradaView');
-      updateEntradaFields();
-      updateSaidaInfo();
+
+      function stopScan(codeReader) {
+        const modal = document.getElementById('scannerModal');
+        modal.style.display = 'none';
+        try {
+          codeReader.reset();
+        } catch (e) {
+          // ignore
+        }
+      }
     </script>
   </body>
 </html>
