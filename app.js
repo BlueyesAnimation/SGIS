@@ -8,7 +8,7 @@
  */
 
 // TODO: substitua este URL pela URL do seu Apps Script implantado (termina em /exec)
-const SCRIPT_URL = 'REPLACE_WITH_YOUR_SCRIPT_URL';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxblumX5zKCIgrHn81cawPEXuPN_TRQ0ogN4AJkcyChSLli7HV3yF69qXti5f_R2I_m/exec';
 
 const messageEl = document.getElementById('message');
 const videoEl = document.getElementById('video');
