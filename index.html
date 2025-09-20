@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SGIS Scanner - Sistema de Gestão de Inventário</title>
+    <title>SGIS ZXing - Sistema de Gestão de Inventário</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -82,14 +82,20 @@
         border: 1px solid #ccc;
         margin-bottom: 1rem;
         display: none;
+        position: relative;
+      }
+      #scanPreview {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
       }
     </style>
-    <!-- Include QuaggaJS from CDN for barcode scanning -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <!-- Include ZXing library from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
   </head>
   <body>
     <div class="container">
-      <h1>SGIS Scanner - Inventário Simples</h1>
+      <h1>SGIS ZXing - Inventário Simples</h1>
       <nav>
         <button id="btnEntrada">Entrada</button>
         <button id="btnSaida">Saída</button>
@@ -97,7 +103,9 @@
         <button id="btnExport">Exportar</button>
       </nav>
       <!-- Scanning area -->
-      <div id="scanArea"></div>
+      <div id="scanArea">
+        <video id="scanPreview"></video>
+      </div>
       <!-- Entrada view -->
       <section id="entradaView" class="view">
         <h2>Entrada de Stock</h2>
@@ -120,7 +128,8 @@
             <input id="entradaName" type="text" placeholder="Nome do produto" />
           </div>
           <div class="form-group" id="entradaPriceGroup" style="display:none;">
-            <label for="entradaPrice">Preço Unitário (€)</label>
+            <label for="entradaPrice">Preço Unitário (€)
+            </label>
             <input
               id="entradaPrice"
               type="number"
@@ -177,7 +186,8 @@
       <section id="consultaView" class="view">
         <h2>Consulta de Stock</h2>
         <div class="form-group">
-          <label for="consultaSearch">Pesquisar (código ou nome)</label>
+          <label for="consultaSearch">Pesquisar (código ou nome)
+          </label>
           <input
             id="consultaSearch"
             type="text"
@@ -190,7 +200,8 @@
               <th>Código</th>
               <th>Nome</th>
               <th>Quantidade</th>
-              <th>Preço Unitário (€)</th>
+              <th>Preço Unitário (€)
+              </th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -210,7 +221,6 @@
       // Storage keys
       const PRODUCTS_KEY = 'sgis_products';
       const MOVEMENTS_KEY = 'sgis_movements';
-
       function loadProducts() {
         try {
           const data = localStorage.getItem(PRODUCTS_KEY);
@@ -244,10 +254,10 @@
           el.classList.remove('active');
         });
         document.getElementById(viewId).classList.add('active');
-        // hide scan area when changing view
+        // hide scan area and stop scanning when changing view
         stopScan();
       }
-      // Navigation buttons
+      // Navigation
       document.getElementById('btnEntrada').addEventListener('click', () => {
         showView('entradaView');
       });
@@ -311,10 +321,8 @@
           products.push({ code, name, price: price, stock: qty });
         }
         saveProducts(products);
-        // record movement
         movements.push({ date: new Date().toISOString(), type: 'Entrada', code: code, quantity: qty });
         saveMovements(movements);
-        // reset form
         entradaCodeInput.value = '';
         entradaQuantityInput.value = '';
         updateEntradaFields();
@@ -421,60 +429,45 @@
         link.click();
         document.body.removeChild(link);
       });
-      // Barcode scanning logic using QuaggaJS
+      // ZXing scanning logic
       let scanning = false;
       let scanningTarget = null;
       const scanArea = document.getElementById('scanArea');
+      const scanPreview = document.getElementById('scanPreview');
+      // ZXing code reader
+      const codeReader = new ZXing.BrowserMultiFormatReader();
       function startScan(targetInputId) {
         if (scanning) return;
         scanning = true;
         scanningTarget = targetInputId;
         scanArea.style.display = 'block';
-        // Initialize Quagga
-        Quagga.init(
-          {
-            inputStream: {
-              name: 'Live',
-              type: 'LiveStream',
-              target: scanArea,
-              constraints: {
-                facingMode: 'environment', // use rear camera
-              },
-            },
-            decoder: {
-              readers: ['ean_reader', 'code_128_reader', 'upc_reader', 'code_39_reader'],
-            },
-          },
-          function (err) {
-            if (err) {
-              console.error(err);
-              alert('Erro ao iniciar o scanner');
-              stopScan();
-              return;
+        // decode from camera stream
+        codeReader
+          .decodeFromVideoDevice(
+            null,
+            scanPreview,
+            (result, err) => {
+              if (result) {
+                const code = result.text;
+                const input = document.getElementById(scanningTarget);
+                input.value = code;
+                const evt = new Event('input', { bubbles: true });
+                input.dispatchEvent(evt);
+                stopScan();
+              }
             }
-            Quagga.start();
-          }
-        );
-        Quagga.onDetected(onDetectedHandler);
-      }
-      function onDetectedHandler(result) {
-        if (!scanning) return;
-        const code = result.codeResult.code;
-        if (code) {
-          const input = document.getElementById(scanningTarget);
-          input.value = code;
-          // Trigger input event manually to update other fields
-          const event = new Event('input', { bubbles: true });
-          input.dispatchEvent(event);
-          stopScan();
-        }
+          )
+          .catch((err) => {
+            console.error(err);
+            alert('Erro ao iniciar o scanner');
+            stopScan();
+          });
       }
       function stopScan() {
         if (!scanning) return;
-        Quagga.offDetected(onDetectedHandler);
-        Quagga.stop();
-        scanArea.style.display = 'none';
         scanning = false;
+        codeReader.reset();
+        scanArea.style.display = 'none';
         scanningTarget = null;
       }
       // Attach scan buttons
