@@ -1,29 +1,493 @@
 <!DOCTYPE html>
 <html lang="pt">
   <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SGIS ‒ Gestão de Inventário</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>SGIS Scanner - Sistema de Gestão de Inventário</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f5f5f5;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+      h1 {
+        text-align: center;
+      }
+      nav {
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 1rem;
+      }
+      nav button {
+        flex: 1;
+        margin: 0 0.25rem;
+        padding: 0.5rem;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      .view {
+        display: none;
+      }
+      .view.active {
+        display: block;
+      }
+      .form-group {
+        margin-bottom: 0.5rem;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 0.25rem;
+      }
+      .form-group input {
+        flex: 1;
+        padding: 0.4rem;
+        font-size: 1rem;
+        box-sizing: border-box;
+      }
+      .form-group .input-row {
+        display: flex;
+        align-items: center;
+      }
+      .form-group .input-row button {
+        margin-left: 0.5rem;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.9rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 0.5rem;
+        text-align: left;
+      }
+      th {
+        background-color: #eee;
+      }
+      .error {
+        color: red;
+        margin-bottom: 0.5rem;
+      }
+      #scanArea {
+        width: 100%;
+        height: 250px;
+        border: 1px solid #ccc;
+        margin-bottom: 1rem;
+        display: none;
+      }
+    </style>
+    <!-- Include QuaggaJS from CDN for barcode scanning -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   </head>
   <body>
-    <h1>SGIS</h1>
-    <p class="subtitle">Sistema de Gestão de Inventário Simples</p>
-    <div id="message"></div>
-
-    <div class="buttons">
-      <button id="btnEntrada" class="primary">Entrada de Stock</button>
-      <button id="btnSaida" class="primary">Saída de Stock</button>
-      <button id="btnConsulta" class="primary">Consultar Stock</button>
-      <button id="btnExportar" class="secondary">Exportar Inventário</button>
-      <button id="btnSync" class="secondary">Sincronizar Pendentes</button>
-      <button id="btnPing">Testar ligação (Ping)</button>
-      
+    <div class="container">
+      <h1>SGIS Scanner - Inventário Simples</h1>
+      <nav>
+        <button id="btnEntrada">Entrada</button>
+        <button id="btnSaida">Saída</button>
+        <button id="btnConsulta">Consulta</button>
+        <button id="btnExport">Exportar</button>
+      </nav>
+      <!-- Scanning area -->
+      <div id="scanArea"></div>
+      <!-- Entrada view -->
+      <section id="entradaView" class="view">
+        <h2>Entrada de Stock</h2>
+        <div id="entradaError" class="error" style="display:none;"></div>
+        <form id="entradaForm">
+          <div class="form-group">
+            <label for="entradaCode">Código do Produto</label>
+            <div class="input-row">
+              <input
+                id="entradaCode"
+                type="text"
+                placeholder="Scan ou insira o código"
+                required
+              />
+              <button type="button" id="entradaScanBtn">Scan</button>
+            </div>
+          </div>
+          <div class="form-group" id="entradaNameGroup" style="display:none;">
+            <label for="entradaName">Nome</label>
+            <input id="entradaName" type="text" placeholder="Nome do produto" />
+          </div>
+          <div class="form-group" id="entradaPriceGroup" style="display:none;">
+            <label for="entradaPrice">Preço Unitário (€)</label>
+            <input
+              id="entradaPrice"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Preço por unidade"
+            />
+          </div>
+          <div class="form-group">
+            <label for="entradaQuantity">Quantidade</label>
+            <input
+              id="entradaQuantity"
+              type="number"
+              min="1"
+              placeholder="Quantidade"
+              required
+            />
+          </div>
+          <button type="submit">Guardar Entrada</button>
+        </form>
+      </section>
+      <!-- Saída view -->
+      <section id="saidaView" class="view">
+        <h2>Saída de Stock</h2>
+        <div id="saidaError" class="error" style="display:none;"></div>
+        <form id="saidaForm">
+          <div class="form-group">
+            <label for="saidaCode">Código do Produto</label>
+            <div class="input-row">
+              <input
+                id="saidaCode"
+                type="text"
+                placeholder="Scan ou insira o código"
+                required
+              />
+              <button type="button" id="saidaScanBtn">Scan</button>
+            </div>
+          </div>
+          <p id="saidaInfo" style="margin-bottom:0.5rem;"></p>
+          <div class="form-group">
+            <label for="saidaQuantity">Quantidade</label>
+            <input
+              id="saidaQuantity"
+              type="number"
+              min="1"
+              placeholder="Quantidade"
+              required
+            />
+          </div>
+          <button type="submit">Guardar Saída</button>
+        </form>
+      </section>
+      <!-- Consulta view -->
+      <section id="consultaView" class="view">
+        <h2>Consulta de Stock</h2>
+        <div class="form-group">
+          <label for="consultaSearch">Pesquisar (código ou nome)</label>
+          <input
+            id="consultaSearch"
+            type="text"
+            placeholder="Introduza código ou nome para pesquisar"
+          />
+        </div>
+        <table id="consultaTable">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nome</th>
+              <th>Quantidade</th>
+              <th>Preço Unitário (€)</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+      <!-- Export view -->
+      <section id="exportView" class="view">
+        <h2>Exportar Inventário</h2>
+        <p>
+          Exporta a lista de produtos e quantidades atuais em formato CSV (compatível
+          com Excel).
+        </p>
+        <button id="btnDownload">Exportar CSV</button>
+      </section>
     </div>
-    <p id="message" style="margin-top:8px;color:#555"></p>
-    <!-- Vídeo para o scanner -->
-    <video id="video" class="hidden"></video>
+    <script>
+      // Storage keys
+      const PRODUCTS_KEY = 'sgis_products';
+      const MOVEMENTS_KEY = 'sgis_movements';
 
-    <script src="app.js"></script>
+      function loadProducts() {
+        try {
+          const data = localStorage.getItem(PRODUCTS_KEY);
+          return data ? JSON.parse(data) : [];
+        } catch (e) {
+          console.error('Erro ao ler produtos', e);
+          return [];
+        }
+      }
+      function saveProducts(products) {
+        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+      }
+      function loadMovements() {
+        try {
+          const data = localStorage.getItem(MOVEMENTS_KEY);
+          return data ? JSON.parse(data) : [];
+        } catch (e) {
+          console.error('Erro ao ler movimentos', e);
+          return [];
+        }
+      }
+      function saveMovements(movements) {
+        localStorage.setItem(MOVEMENTS_KEY, JSON.stringify(movements));
+      }
+      // Global state
+      let products = loadProducts();
+      let movements = loadMovements();
+      // View controls
+      function showView(viewId) {
+        document.querySelectorAll('.view').forEach((el) => {
+          el.classList.remove('active');
+        });
+        document.getElementById(viewId).classList.add('active');
+        // hide scan area when changing view
+        stopScan();
+      }
+      // Navigation buttons
+      document.getElementById('btnEntrada').addEventListener('click', () => {
+        showView('entradaView');
+      });
+      document.getElementById('btnSaida').addEventListener('click', () => {
+        showView('saidaView');
+      });
+      document.getElementById('btnConsulta').addEventListener('click', () => {
+        renderConsulta();
+        showView('consultaView');
+      });
+      document.getElementById('btnExport').addEventListener('click', () => {
+        showView('exportView');
+      });
+      // Entrada form behaviour
+      const entradaCodeInput = document.getElementById('entradaCode');
+      const entradaNameGroup = document.getElementById('entradaNameGroup');
+      const entradaPriceGroup = document.getElementById('entradaPriceGroup');
+      const entradaNameInput = document.getElementById('entradaName');
+      const entradaPriceInput = document.getElementById('entradaPrice');
+      const entradaQuantityInput = document.getElementById('entradaQuantity');
+      const entradaError = document.getElementById('entradaError');
+      function updateEntradaFields() {
+        const code = entradaCodeInput.value.trim();
+        const existing = products.find((p) => p.code === code);
+        if (existing) {
+          entradaNameGroup.style.display = 'none';
+          entradaPriceGroup.style.display = 'none';
+          entradaNameInput.value = existing.name;
+          entradaPriceInput.value = existing.price;
+        } else {
+          entradaNameGroup.style.display = 'block';
+          entradaPriceGroup.style.display = 'block';
+          entradaNameInput.value = '';
+          entradaPriceInput.value = '';
+        }
+      }
+      entradaCodeInput.addEventListener('input', updateEntradaFields);
+      document.getElementById('entradaForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        entradaError.style.display = 'none';
+        const code = entradaCodeInput.value.trim();
+        const qty = parseInt(entradaQuantityInput.value, 10);
+        if (!code) {
+          showEntradaError('Código é obrigatório');
+          return;
+        }
+        if (!qty || qty <= 0) {
+          showEntradaError('Quantidade inválida');
+          return;
+        }
+        const existing = products.find((p) => p.code === code);
+        if (existing) {
+          existing.stock += qty;
+        } else {
+          const name = entradaNameInput.value.trim();
+          const price = parseFloat(entradaPriceInput.value);
+          if (!name || isNaN(price)) {
+            showEntradaError('Nome e preço são obrigatórios para novo produto');
+            return;
+          }
+          products.push({ code, name, price: price, stock: qty });
+        }
+        saveProducts(products);
+        // record movement
+        movements.push({ date: new Date().toISOString(), type: 'Entrada', code: code, quantity: qty });
+        saveMovements(movements);
+        // reset form
+        entradaCodeInput.value = '';
+        entradaQuantityInput.value = '';
+        updateEntradaFields();
+        alert('Entrada registrada com sucesso');
+      });
+      function showEntradaError(msg) {
+        entradaError.textContent = msg;
+        entradaError.style.display = 'block';
+      }
+      // Saída form behaviour
+      const saidaCodeInput = document.getElementById('saidaCode');
+      const saidaQuantityInput = document.getElementById('saidaQuantity');
+      const saidaInfo = document.getElementById('saidaInfo');
+      const saidaError = document.getElementById('saidaError');
+      function updateSaidaInfo() {
+        saidaInfo.textContent = '';
+        const code = saidaCodeInput.value.trim();
+        const product = products.find((p) => p.code === code);
+        if (product) {
+          saidaInfo.textContent = `${product.name} — Stock atual: ${product.stock}, Preço unitário: €${product.price.toFixed(2)}`;
+        }
+      }
+      saidaCodeInput.addEventListener('input', updateSaidaInfo);
+      document.getElementById('saidaForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        saidaError.style.display = 'none';
+        const code = saidaCodeInput.value.trim();
+        const qty = parseInt(saidaQuantityInput.value, 10);
+        if (!code) {
+          showSaidaError('Código é obrigatório');
+          return;
+        }
+        if (!qty || qty <= 0) {
+          showSaidaError('Quantidade inválida');
+          return;
+        }
+        const product = products.find((p) => p.code === code);
+        if (!product) {
+          showSaidaError('Produto não encontrado');
+          return;
+        }
+        if (product.stock < qty) {
+          showSaidaError(`Stock insuficiente. Stock atual: ${product.stock}, solicitado: ${qty}`);
+          return;
+        }
+        product.stock -= qty;
+        saveProducts(products);
+        movements.push({ date: new Date().toISOString(), type: 'Saída', code: code, quantity: qty });
+        saveMovements(movements);
+        saidaCodeInput.value = '';
+        saidaQuantityInput.value = '';
+        updateSaidaInfo();
+        alert('Saída registrada com sucesso');
+      });
+      function showSaidaError(msg) {
+        saidaError.textContent = msg;
+        saidaError.style.display = 'block';
+      }
+      // Consulta view
+      const consultaSearchInput = document.getElementById('consultaSearch');
+      const consultaTableBody = document.querySelector('#consultaTable tbody');
+      function renderConsulta() {
+        const query = consultaSearchInput.value.trim().toLowerCase();
+        consultaTableBody.innerHTML = '';
+        products
+          .filter((p) => p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query))
+          .forEach((p) => {
+            const tr = document.createElement('tr');
+            const tdCode = document.createElement('td');
+            tdCode.textContent = p.code;
+            const tdName = document.createElement('td');
+            tdName.textContent = p.name;
+            const tdStock = document.createElement('td');
+            tdStock.textContent = p.stock;
+            const tdPrice = document.createElement('td');
+            tdPrice.textContent = p.price.toFixed(2);
+            tr.appendChild(tdCode);
+            tr.appendChild(tdName);
+            tr.appendChild(tdStock);
+            tr.appendChild(tdPrice);
+            consultaTableBody.appendChild(tr);
+          });
+      }
+      consultaSearchInput.addEventListener('input', renderConsulta);
+      // Export view
+      document.getElementById('btnDownload').addEventListener('click', function () {
+        if (products.length === 0) {
+          alert('Não há produtos para exportar.');
+          return;
+        }
+        const header = ['Código', 'Nome', 'Quantidade', 'Preço Unitário'];
+        const lines = [header.join(';')];
+        products.forEach((p) => {
+          lines.push([p.code, p.name, p.stock, p.price.toFixed(2)].join(';'));
+        });
+        const csvContent = lines.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        link.download = `inventario_${date}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+      // Barcode scanning logic using QuaggaJS
+      let scanning = false;
+      let scanningTarget = null;
+      const scanArea = document.getElementById('scanArea');
+      function startScan(targetInputId) {
+        if (scanning) return;
+        scanning = true;
+        scanningTarget = targetInputId;
+        scanArea.style.display = 'block';
+        // Initialize Quagga
+        Quagga.init(
+          {
+            inputStream: {
+              name: 'Live',
+              type: 'LiveStream',
+              target: scanArea,
+              constraints: {
+                facingMode: 'environment', // use rear camera
+              },
+            },
+            decoder: {
+              readers: ['ean_reader', 'code_128_reader', 'upc_reader', 'code_39_reader'],
+            },
+          },
+          function (err) {
+            if (err) {
+              console.error(err);
+              alert('Erro ao iniciar o scanner');
+              stopScan();
+              return;
+            }
+            Quagga.start();
+          }
+        );
+        Quagga.onDetected(onDetectedHandler);
+      }
+      function onDetectedHandler(result) {
+        if (!scanning) return;
+        const code = result.codeResult.code;
+        if (code) {
+          const input = document.getElementById(scanningTarget);
+          input.value = code;
+          // Trigger input event manually to update other fields
+          const event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
+          stopScan();
+        }
+      }
+      function stopScan() {
+        if (!scanning) return;
+        Quagga.offDetected(onDetectedHandler);
+        Quagga.stop();
+        scanArea.style.display = 'none';
+        scanning = false;
+        scanningTarget = null;
+      }
+      // Attach scan buttons
+      document.getElementById('entradaScanBtn').addEventListener('click', () => {
+        startScan('entradaCode');
+      });
+      document.getElementById('saidaScanBtn').addEventListener('click', () => {
+        startScan('saidaCode');
+      });
+      // Initialize default view
+      showView('entradaView');
+      updateEntradaFields();
+      updateSaidaInfo();
+    </script>
   </body>
 </html>
