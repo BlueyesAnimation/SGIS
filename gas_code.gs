@@ -12,7 +12,7 @@
  */
 
 // Substitua este valor pelo ID do seu Google Sheets
-const SPREADSHEET_ID = 'REPLACE_WITH_SPREADSHEET_ID';
+const SPREADSHEET_ID = '1ZL_kWXwotlHUcRk2BTD-anDS2LmyyqkdtGdy_XEhhuI';
 
 /** Obtém o Spreadsheet. */
 function getSpreadsheet() {
