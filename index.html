@@ -169,7 +169,7 @@
     <script>
       // --- Configuration ---
       // Replace WEB_APP_URL with the deployment URL of your Apps Script Web App.
-      const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMcTuyVMqRZ4S7KoAgr70BoEe8PrWp1nEZTh6qAODUqJA4KbdBNnYTmFbl-WjpT4fh/exec';
+      const WEB_APP_URL = 'REPLACE_WITH_YOUR_WEB_APP_URL';
 
       // Local storage keys
       const STORAGE_PRODUCTS_KEY = 'sgis_products';
@@ -407,16 +407,15 @@
         const previewElem = document.getElementById('preview');
         modal.style.display = 'flex';
         const codeReader = new ZXing.BrowserMultiFormatReader();
+        // Attempt to decode using the default camera. On mobile devices, ZXing
+        // will try to select the back camera automatically when deviceId is
+        // undefined. If it fails, an error will be caught below.
         codeReader
-          .listVideoInputDevices()
-          .then(videoInputDevices => {
-            const firstDeviceId = videoInputDevices[0]?.deviceId;
-            codeReader.decodeFromVideoDevice(firstDeviceId, 'preview', (result, err) => {
-              if (result) {
-                selectedInput.value = result.getText();
-                stopScan(codeReader);
-              }
-            });
+          .decodeFromVideoDevice(undefined, 'preview', (result, err) => {
+            if (result) {
+              selectedInput.value = result.getText();
+              stopScan(codeReader);
+            }
           })
           .catch(err => {
             console.error(err);
