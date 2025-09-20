@@ -1,0 +1,81 @@
+/* Estilos simples para a aplicação SGIS */
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+}
+
+h1 {
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
+  font-size: 2rem;
+  color: #2c3e50;
+}
+
+.subtitle {
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  color: #7f8c8d;
+}
+
+#message {
+  width: 90%;
+  max-width: 480px;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  background-color: #ecf0f1;
+  color: #2c3e50;
+  min-height: 1.5em;
+}
+
+.buttons {
+  width: 90%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+button {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+}
+
+button.primary {
+  background-color: #3498db;
+  color: #fff;
+}
+
+button.secondary {
+  background-color: #bdc3c7;
+  color: #2c3e50;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+#video {
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid #ccc;
+  margin-top: 1rem;
+  border-radius: 4px;
+}
+
+.hidden {
+  display: none;
+}

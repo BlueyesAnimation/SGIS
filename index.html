@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SGIS ‒ Gestão de Inventário</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>SGIS</h1>
+    <p class="subtitle">Sistema de Gestão de Inventário Simples</p>
+    <div id="message"></div>
+
+    <div class="buttons">
+      <button id="btnEntrada" class="primary">Entrada de Stock</button>
+      <button id="btnSaida" class="primary">Saída de Stock</button>
+      <button id="btnConsulta" class="primary">Consultar Stock</button>
+      <button id="btnExportar" class="secondary">Exportar Inventário</button>
+      <button id="btnSync" class="secondary">Sincronizar Pendentes</button>
+    </div>
+
+    <!-- Vídeo para o scanner -->
+    <video id="video" class="hidden"></video>
+
+    <script src="app.js"></script>
+  </body>
+</html>
