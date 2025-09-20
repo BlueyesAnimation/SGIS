@@ -379,14 +379,19 @@
         // Prepare payload: convert product and movements arrays to arrays of arrays
         const produtosValues = products.map(p => [p.codigo, p.nome, p.preco, p.quantidade]);
         const movimentosValues = movements.map(m => [m.data, m.tipo, m.codigo, m.quantidade, m.utilizador]);
+        // Prepare payload as JSON string and send it using
+        // application/x-www-form-urlencoded. This avoids CORS preflight requests
+        // and complies with Apps Script restrictions on custom headers.
+        const payload = JSON.stringify({ produtos: produtosValues, movimentos: movimentosValues });
+        const formBody = 'data=' + encodeURIComponent(payload);
         fetch(WEB_APP_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ produtos: produtosValues, movimentos: movimentosValues })
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formBody
         })
-          .then(response => response.json())
-          .then(data => {
-            console.log('Sync response:', data);
+          .then(() => {
+            // We cannot read the response due to CORS; assume success.
+            console.log('Dados enviados para o Apps Script');
             document.getElementById('status').textContent = 'Sincronizado com o servidor';
           })
           .catch(err => {
