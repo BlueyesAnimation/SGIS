@@ -1,166 +1,119 @@
 /**
- * Google Apps Script para o SGIS.
- *
- * Este script deve ser copiado para um projecto de Apps Script associado a um
- * Google Sheets.  Depois de implantar como Web App (Deploy → New deployment),
- * poderá comunicar com a aplicação web através das acções definidas abaixo.
- *
- * As folhas de cálculo devem conter duas folhas com os seguintes nomes e
- * cabeçalhos:
- *  - Produtos: Código | Nome | Categoria | Preço Unitário | Stock Atual | Última Entrada | Última Saída
- *  - Movimentos: Data | Tipo | Código | Quantidade | Utilizador
+ * SGIS – Google Apps Script (versão com CORS + ping)
  */
 
-// Substitua este valor pelo ID do seu Google Sheets
 const SPREADSHEET_ID = '1ZL_kWXwotlHUcRk2BTD-anDS2LmyyqkdtGdy_XEhhuI';
+const SHEET_PRODUTOS = 'Produtos';
+const SHEET_MOVIMENTOS = 'Movimentos';
 
-/** Obtém o Spreadsheet. */
-function getSpreadsheet() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
-}
+function _ss() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
 
-/** Obtém a folha pelo nome. */
-function getSheet(name) {
-  return getSpreadsheet().getSheetByName(name);
-}
-
-/** Encontra a linha de um produto pelo código.  Retorna -1 se não existir. */
-function findProductRow(code) {
-  const sheet = getSheet('Produtos');
-  const lastRow = sheet.getLastRow();
-  const codes = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
-  for (let i = 0; i < codes.length; i++) {
-    if (String(codes[i]) === String(code)) {
-      return i + 2; // considerar cabeçalho na linha 1
-    }
-  }
-  return -1;
-}
-
-/** Converte valores vazios para string vazia. */
-function clean(val) {
-  return val == null ? '' : val;
-}
-
-/** Cria um novo produto. */
-function createProduct(code, name, price) {
-  const sheet = getSheet('Produtos');
-  const now = new Date();
-  sheet.appendRow([code, name, '', parseFloat(price), 0, '', '']);
-}
-
-/** Regista um movimento de entrada. */
-function registerEntrada(code, qty, name, price) {
-  const produtos = getSheet('Produtos');
-  const movimentos = getSheet('Movimentos');
-  let row = findProductRow(code);
-  // Se produto não existe, criar
-  if (row === -1) {
-    createProduct(code, name, price);
-    row = findProductRow(code);
-  }
-  const now = new Date();
-  // Actualizar stock e última entrada
-  const stockCell = produtos.getRange(row, 5).getValue();
-  const newStock = parseFloat(stockCell) + parseFloat(qty);
-  produtos.getRange(row, 5).setValue(newStock);
-  produtos.getRange(row, 6).setValue(now);
-  // Se preço fornecido, actualizar
-  if (price) {
-    produtos.getRange(row, 4).setValue(parseFloat(price));
-  }
-  // Registar movimento
-  movimentos.appendRow([now, 'Entrada', code, qty, 'anonimo']);
-  return { status: 'OK', stock: newStock };
-}
-
-/** Regista um movimento de saída. */
-function registerSaida(code, qty) {
-  const produtos = getSheet('Produtos');
-  const movimentos = getSheet('Movimentos');
-  const row = findProductRow(code);
-  if (row === -1) {
-    return { status: 'NOT_FOUND' };
-  }
-  const now = new Date();
-  const currentStock = parseFloat(produtos.getRange(row, 5).getValue());
-  const newStock = currentStock - parseFloat(qty);
-  produtos.getRange(row, 5).setValue(newStock);
-  produtos.getRange(row, 7).setValue(now);
-  movimentos.appendRow([now, 'Saída', code, qty, 'anonimo']);
-  return { status: 'OK', stock: newStock };
-}
-
-/** Consulta um produto. */
-function consultarProduto(code) {
-  const produtos = getSheet('Produtos');
-  const row = findProductRow(code);
-  if (row === -1) {
-    return { status: 'NOT_FOUND' };
-  }
-  const values = produtos.getRange(row, 1, 1, 7).getValues()[0];
+function _corsHeaders() {
   return {
-    status: 'OK',
-    code: values[0],
-    name: values[1],
-    category: values[2],
-    price: values[3],
-    stock: values[4],
-    lastEntrada: values[5],
-    lastSaida: values[6],
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
   };
 }
 
-/** Exporta o inventário para um ficheiro Excel e guarda na pasta "Inventário" no Drive. */
-function exportInventory() {
-  const produtosSheet = getSheet('Produtos');
-  const folderIterator = DriveApp.getFoldersByName('Inventário');
-  let folder;
-  if (folderIterator.hasNext()) {
-    folder = folderIterator.next();
-  } else {
-    folder = DriveApp.createFolder('Inventário');
-  }
-  // Criar novo spreadsheet temporário
-  const tempSpreadsheet = SpreadsheetApp.create('Exportacao Inventario');
-  const tempSheet = tempSpreadsheet.getSheets()[0];
-  // Copiar dados e cabeçalhos
-  const range = produtosSheet.getDataRange();
-  const values = range.getValues();
-  tempSheet.getRange(1, 1, values.length, values[0].length).setValues(values);
-  // Exportar para Excel (xlsx)
-  const blob = tempSpreadsheet.getBlob().setName('Inventario.xlsx');
-  const file = folder.createFile(blob);
-  // Eliminar o temporário
-  DriveApp.getFileById(tempSpreadsheet.getId()).setTrashed(true);
-  return { status: 'OK', fileId: file.getId(), fileUrl: file.getUrl() };
+function doOptions() {
+  const out = ContentService.createTextOutput('');
+  Object.entries(_corsHeaders()).forEach(([k,v])=> out.setHeader(k,v));
+  return out;
 }
 
-/** Handler principal para pedidos GET. */
 function doGet(e) {
-  const action = e.parameter.action;
-  let result;
   try {
-    switch (action) {
-      case 'entrada':
-        result = registerEntrada(e.parameter.code, e.parameter.qty, e.parameter.name, e.parameter.price);
-        break;
-      case 'saida':
-        result = registerSaida(e.parameter.code, e.parameter.qty);
-        break;
-      case 'consulta':
-        result = consultarProduto(e.parameter.code);
-        break;
-      case 'export':
-        result = exportInventory();
-        break;
-      default:
-        result = { status: 'ERROR', message: 'Ação desconhecida' };
+    const params = e && e.parameter ? e.parameter : {};
+    if (params.action === 'ping') {
+      return _json({ok:true, time: new Date().toISOString()});
     }
+    if (params.action === 'consulta' && params.code) {
+      const produto = _findProduto(params.code);
+      return _json({status: produto ? 'OK' : 'NOT_FOUND', produto});
+    }
+    return _json({error:'INVALID_ACTION'});
   } catch (err) {
-    result = { status: 'ERROR', message: err.toString() };
+    return _json({error:String(err), stack:(err && err.stack)||''}, 500);
   }
-  return ContentService
-    .createTextOutput(JSON.stringify(result))
-    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const body = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
+    const action = body.action;
+    if (action === 'entrada' || action === 'saida') {
+      if (!body.code || !body.qty) return _json({error:'MISSING_FIELDS'}, 400);
+      const q = Number(body.qty);
+      const p = body.price != null ? Number(body.price) : null;
+      const res = _movimento(action, body.code, q, p, body.user||'mobile');
+      return _json({status:'OK', result:res});
+    }
+    if (action === 'exportar') {
+      const url = _exportarInventario();
+      return _json({status:'OK', url});
+    }
+    if (action === 'consulta' && body.code) {
+      const produto = _findProduto(body.code);
+      return _json({status: produto ? 'OK' : 'NOT_FOUND', produto});
+    }
+    return _json({error:'INVALID_ACTION'}, 400);
+  } catch (err) {
+    return _json({error:String(err), stack:(err && err.stack)||''}, 500);
+  }
+}
+
+function _json(obj, status) {
+  const out = ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+  Object.entries(_corsHeaders()).forEach(([k,v])=> out.setHeader(k,v));
+  if (status) out.setHeader('X-Status', String(status));
+  return out;
+}
+
+function _findProduto(code) {
+  const sh = _ss().getSheetByName(SHEET_PRODUTOS);
+  const vals = sh.getDataRange().getValues();
+  const idx = vals.findIndex(r=>String(r[0])===String(code));
+  if (idx <= 0) return null; // ignora cabeçalho
+  const r = vals[idx];
+  return {
+    codigo: r[0],
+    nome: r[1],
+    categoria: r[2],
+    preco: r[3],
+    stock: r[4],
+    ultimaEntrada: r[5],
+    ultimaSaida: r[6]
+  };
+}
+
+function _movimento(tipo, code, qty, price, user) {
+  const ss = _ss();
+  const shP = ss.getSheetByName(SHEET_PRODUTOS);
+  const shM = ss.getSheetByName(SHEET_MOVIMENTOS);
+  const vals = shP.getDataRange().getValues();
+  let row = vals.findIndex(r=>String(r[0])===String(code));
+  if (row < 0) {
+    // novo produto
+    row = shP.getLastRow()+1;
+    shP.getRange(row,1,1,7).setValues([[code, '', '', price||0, 0, '', '']]);
+  } else {
+    row = row+1; // 1-based
+  }
+  const stockCell = shP.getRange(row,5);
+  const precoCell = shP.getRange(row,4);
+  const current = Number(stockCell.getValue()||0);
+  const novo = tipo==='entrada' ? current+qty : current-qty;
+  stockCell.setValue(novo);
+  if (price!=null && !isNaN(price)) precoCell.setValue(price);
+  const now = new Date();
+  if (tipo==='entrada') shP.getRange(row,6).setValue(now);
+  else shP.getRange(row,7).setValue(now);
+
+  shM.appendRow([now, tipo==='entrada'?'Entrada':'Saída', code, qty, user]);
+  return {code, stock: novo};
+}
+
+function _exportarInventario() {
+  return 'https://docs.google.com/spreadsheets/d/'+ SPREADSHEET_ID;
 }
